@@ -8,9 +8,13 @@ The tool calculates the shortest reaction pathway between two compounds, providi
 
 ## User Input:
 Enter reaction: Ethanol Acetaldehyde 5.2
+
 Enter reaction: Ethanol AceticAcid 7.1
+
 Enter reaction: Acetaldehyde AceticAcid 2.3
+
 Enter reaction: Acetaldehyde EthylAcetate 4.5
+
 Enter reaction: AceticAcid EthylAcetate 3.7
 Enter reaction: done
 
