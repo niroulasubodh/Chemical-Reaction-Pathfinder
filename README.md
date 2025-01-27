@@ -20,18 +20,25 @@ Enter reaction: done
 
 ## Output (Graph): 
 Chemical Reaction Network Graph:
+
 Ethanol --[5.2]--> Acetaldehyde
+
 Ethanol --[7.1]--> AceticAcid
+
 Acetaldehyde --[2.3]--> AceticAcid
+
 Acetaldehyde --[4.5]--> EthylAcetate
+
 AceticAcid --[3.7]--> EthylAcetate
 
 ## Pathway Calculation:
 Enter the starting compound: Ethanol
+
 Enter the target compound: EthylAcetate
 
 ## Output (Shortest Pathway and Reaction Cost):
 Shortest Reaction Pathway: Ethanol -> Acetaldehyde -> EthylAcetate
+
 Total Reaction Cost: 9.7
 
 # Acknowledgment
