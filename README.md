@@ -43,4 +43,4 @@ Total Reaction Cost: 9.7
 
 # Acknowledgment
 
-This project was developed as part of the Discrete Mathematics course. I would also like to acknowledge Professor Sonwabile Mafunda for teaching graph theory concepts and assigning this project.
+This project was developed as part of the Discrete Mathematics course. I would like to acknowledge Professor Sonwabile Mafunda for teaching graph theory concepts and assigning this project.
