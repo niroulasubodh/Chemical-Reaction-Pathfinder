@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chemical Reaction Pathfinder</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --accent:#38bdf8; --accent2:#22c55e;
+    --text:#e2e8f0; --muted:#94a3b8; --edge:#475569; --path:#f97316;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text);
+    padding:24px; line-height:1.5;
+  }
+  h1{font-size:1.6rem; margin-bottom:4px;}
+  .sub{color:var(--muted); margin-top:0; margin-bottom:20px;}
+  .layout{display:grid; grid-template-columns:360px 1fr; gap:20px;}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;}}
+  .panel{
+    background:var(--panel); border-radius:10px; padding:18px; margin-bottom:18px;
+    box-shadow:0 2px 8px rgba(0,0,0,.3);
+  }
+  h2{font-size:1.05rem; margin-top:0; color:var(--accent);}
+  label{display:block; font-size:.85rem; color:var(--muted); margin-bottom:4px; margin-top:10px;}
+  input, select{
+    width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--edge);
+    background:#0f172a; color:var(--text); font-size:.95rem;
+  }
+  button{
+    cursor:pointer; border:none; border-radius:6px; padding:9px 14px; font-size:.9rem;
+    font-weight:600; margin-top:12px; margin-right:8px; transition:opacity .15s;
+  }
+  button:hover{opacity:.85;}
+  .btn-primary{background:var(--accent); color:#0f172a;}
+  .btn-green{background:var(--accent2); color:#0f172a;}
+  .btn-muted{background:var(--edge); color:var(--text);}
+  table{width:100%; border-collapse:collapse; font-size:.88rem;}
+  th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--edge);}
+  th{color:var(--muted); font-weight:600;}
+  .result{
+    margin-top:10px; padding:12px; border-radius:8px; background:#0f172a;
+    border:1px solid var(--edge); font-size:.95rem;
+  }
+  .result.ok{border-color:var(--accent2);}
+  .result.err{border-color:#ef4444; color:#fca5a5;}
+  .cost{color:var(--accent2); font-weight:700;}
+  .empty{color:var(--muted); font-style:italic;}
+  svg{width:100%; height:420px; background:#0f172a; border-radius:8px; border:1px solid var(--edge);}
+  .edge-line{stroke:var(--edge); stroke-width:2;}
+  .edge-line.hl{stroke:var(--path); stroke-width:3.5;}
+  .edge-label{fill:var(--muted); font-size:11px;}
+  .edge-label.hl{fill:var(--path); font-weight:700;}
+  .node-circle{fill:#334155; stroke:var(--accent); stroke-width:2;}
+  .node-circle.hl{fill:#7c2d12; stroke:var(--path);}
+  .node-label{fill:var(--text); font-size:12px; font-weight:600; text-anchor:middle;}
+  .remove-btn{color:#ef4444; cursor:pointer; font-weight:700; background:none; border:none; padding:0; margin:0; font-size:.9rem;}
+</style>
+</head>
+<body>
+
+<h1>Chemical Reaction Pathfinder</h1>
+<p class="sub">Model reactions as a weighted graph and find the lowest-cost pathway between two compounds (Dijkstra's algorithm).</p>
+
+<div class="layout">
+  <div>
+    <div class="panel">
+      <h2>Add Reaction</h2>
+      <label>Start compound</label>
+      <input id="startInput" placeholder="e.g. Ethanol">
+      <label>End compound</label>
+      <input id="endInput" placeholder="e.g. Acetaldehyde">
+      <label>Reaction cost</label>
+      <input id="costInput" type="number" step="any" placeholder="e.g. 5.2">
+      <button class="btn-primary" onclick="addReaction()">Add Reaction</button>
+      <button class="btn-green" onclick="loadExample()">Load Example</button>
+      <button class="btn-muted" onclick="clearAll()">Reset</button>
+    </div>
+
+    <div class="panel">
+      <h2>Reaction Table</h2>
+      <div id="tableWrap"><p class="empty">No reactions added yet.</p></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Find Shortest Pathway</h2>
+      <label>Starting compound</label>
+      <select id="startSelect"></select>
+      <label>Target compound</label>
+      <select id="endSelect"></select>
+      <button class="btn-primary" onclick="findPath()">Compute Shortest Pathway</button>
+      <div id="resultBox"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Reaction Network Diagram</h2>
+      <svg id="graphSvg"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Graph model (mirrors the Python ChemicalPathfinder class) ----
+let graph = {}; // { compound: [ {to, cost}, ... ] }
+let lastPathEdges = new Set();
+let lastPathNodes = new Set();
+
+function addReactionToGraph(start, end, cost){
+  if(!graph[start]) graph[start] = [];
+  graph[start].push({to:end, cost});
+  if(!graph[end]) graph[end] = [];
+}
+
+function addReaction(){
+  const start = document.getElementById('startInput').value.trim();
+  const end = document.getElementById('endInput').value.trim();
+  const cost = parseFloat(document.getElementById('costInput').value);
+  if(!start || !end || isNaN(cost)){
+    alert('Please enter a valid start compound, end compound, and numeric cost.');
+    return;
+  }
+  addReactionToGraph(start, end, cost);
+  document.getElementById('startInput').value = '';
+  document.getElementById('endInput').value = '';
+  document.getElementById('costInput').value = '';
+  lastPathEdges = new Set(); lastPathNodes = new Set();
+  document.getElementById('resultBox').innerHTML = '';
+  refreshAll();
+}
+
+function removeEdge(start, idx){
+  graph[start].splice(idx,1);
+  lastPathEdges = new Set(); lastPathNodes = new Set();
+  document.getElementById('resultBox').innerHTML = '';
+  refreshAll();
+}
+
+function clearAll(){
+  graph = {};
+  lastPathEdges = new Set(); lastPathNodes = new Set();
+  document.getElementById('resultBox').innerHTML = '';
+  refreshAll();
+}
+
+function loadExample(){
+  clearAll();
+  const rxns = [
+    ["Ethanol","Acetaldehyde",5.2],
+    ["Ethanol","AceticAcid",7.1],
+    ["Acetaldehyde","AceticAcid",2.3],
+    ["Acetaldehyde","EthylAcetate",4.5],
+    ["AceticAcid","EthylAcetate",3.7],
+  ];
+  rxns.forEach(r => addReactionToGraph(r[0], r[1], r[2]));
+  refreshAll();
+}
+
+// ---- Dijkstra's algorithm ----
+function findShortestPathway(start, end){
+  if(!(start in graph)) return {path:[], cost:Infinity};
+
+  const distances = {}; const previous = {};
+  Object.keys(graph).forEach(c => { distances[c] = Infinity; previous[c] = null; });
+  distances[start] = 0;
+
+  // simple binary-heap-free priority queue (array + sort) for small graphs
+  let pq = [{d:0, node:start}];
+  const visited = new Set();
+
+  while(pq.length){
+    pq.sort((a,b) => a.d - b.d);
+    const {d, node} = pq.shift();
+    if(node === end) break;
+    if(visited.has(node)) continue;
+    visited.add(node);
+    if(d > distances[node]) continue;
+
+    (graph[node] || []).forEach(({to, cost}) => {
+      const nd = d + cost;
+      if(nd < distances[to]){
+        distances[to] = nd;
+        previous[to] = node;
+        pq.push({d:nd, node:to});
+      }
+    });
+  }
+
+  if(distances[end] === undefined || distances[end] === Infinity) return {path:[], cost:Infinity};
+
+  const path = [];
+  let cur = end;
+  while(cur !== null){ path.unshift(cur); cur = previous[cur]; }
+  return {path, cost:distances[end]};
+}
+
+function findPath(){
+  const start = document.getElementById('startSelect').value;
+  const end = document.getElementById('endSelect').value;
+  const box = document.getElementById('resultBox');
+  if(!start || !end){
+    box.className = 'result err';
+    box.innerHTML = 'Please select both a starting and target compound.';
+    return;
+  }
+  const {path, cost} = findShortestPathway(start, end);
+  if(path.length === 0){
+    box.className = 'result err';
+    box.innerHTML = `No pathway found between <b>${start}</b> and <b>${end}</b>.`;
+    lastPathEdges = new Set(); lastPathNodes = new Set();
+  } else {
+    box.className = 'result ok';
+    box.innerHTML = `<div><b>Shortest Reaction Pathway:</b> ${path.join(' &rarr; ')}</div>
+                     <div><b>Total Reaction Cost:</b> <span class="cost">${cost}</span></div>`;
+    lastPathNodes = new Set(path);
+    lastPathEdges = new Set();
+    for(let i=0;i<path.length-1;i++) lastPathEdges.add(path[i]+'->'+path[i+1]);
+  }
+  drawGraph();
+}
+
+// ---- UI refresh: table + selects ----
+function refreshAll(){
+  renderTable();
+  renderSelects();
+  drawGraph();
+}
+
+function renderTable(){
+  const wrap = document.getElementById('tableWrap');
+  const rows = [];
+  Object.keys(graph).forEach(start => {
+    (graph[start]||[]).forEach((e, idx) => {
+      rows.push({start, to:e.to, cost:e.cost, idx});
+    });
+  });
+  if(rows.length === 0){
+    wrap.innerHTML = '<p class="empty">No reactions added yet.</p>';
+    return;
+  }
+  let html = '<table><tr><th>Start</th><th>End</th><th>Cost</th><th></th></tr>';
+  rows.forEach(r => {
+    html += `<tr><td>${r.start}</td><td>${r.to}</td><td>${r.cost}</td>
+             <td><button class="remove-btn" onclick="removeEdge('${r.start.replace(/'/g,"\\'")}', ${r.idx})">✕</button></td></tr>`;
+  });
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function renderSelects(){
+  const compounds = Object.keys(graph);
+  ['startSelect','endSelect'].forEach(id => {
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">-- select --</option>' +
+      compounds.map(c => `<option value="${c}">${c}</option>`).join('');
+    if(compounds.includes(prev)) sel.value = prev;
+  });
+}
+
+// ---- SVG graph drawing ----
+function drawGraph(){
+  const svg = document.getElementById('graphSvg');
+  const compounds = Object.keys(graph);
+  svg.innerHTML = '';
+  if(compounds.length === 0) return;
+
+  const w = svg.clientWidth || 600, h = 420;
+  const cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 60;
+  const pos = {};
+  compounds.forEach((c,i) => {
+    const angle = (2*Math.PI*i/compounds.length) - Math.PI/2;
+    pos[c] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
+  });
+
+  const ns = "http://www.w3.org/2000/svg";
+  const defs = document.createElementNS(ns,'defs');
+  defs.innerHTML = `
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowHl" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#f97316"/>
+    </marker>`;
+  svg.appendChild(defs);
+
+  // edges
+  compounds.forEach(start => {
+    (graph[start]||[]).forEach(e => {
+      const to = e.to;
+      if(!pos[to]) return;
+      const p1 = pos[start], p2 = pos[to];
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+      const ux = dx/dist, uy = dy/dist;
+      const nodeR = 26;
+      const x1 = p1.x + ux*nodeR, y1 = p1.y + uy*nodeR;
+      const x2 = p2.x - ux*(nodeR+8), y2 = p2.y - uy*(nodeR+8);
+      const isHl = lastPathEdges.has(start+'->'+to);
+
+      const line = document.createElementNS(ns,'line');
+      line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+      line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+      line.setAttribute('class','edge-line'+(isHl?' hl':''));
+      line.setAttribute('marker-end', isHl?'url(#arrowHl)':'url(#arrow)');
+      svg.appendChild(line);
+
+      const label = document.createElementNS(ns,'text');
+      label.setAttribute('x',(x1+x2)/2);
+      label.setAttribute('y',(y1+y2)/2 - 4);
+      label.setAttribute('class','edge-label'+(isHl?' hl':''));
+      label.textContent = e.cost;
+      svg.appendChild(label);
+    });
+  });
+
+  // nodes
+  compounds.forEach(c => {
+    const p = pos[c];
+    const isHl = lastPathNodes.has(c);
+    const circle = document.createElementNS(ns,'circle');
+    circle.setAttribute('cx',p.x); circle.setAttribute('cy',p.y);
+    circle.setAttribute('r',26);
+    circle.setAttribute('class','node-circle'+(isHl?' hl':''));
+    svg.appendChild(circle);
+
+    const text = document.createElementNS(ns,'text');
+    text.setAttribute('x',p.x); text.setAttribute('y',p.y+4);
+    text.setAttribute('class','node-label');
+    text.textContent = c.length>10 ? c.slice(0,9)+'…' : c;
+    svg.appendChild(text);
+  });
+}
+
+window.addEventListener('resize', drawGraph);
+refreshAll();
+</script>
+</body>
+</html>
