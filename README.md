@@ -1,4 +1,4 @@
-# Chemical-Reaction-Pathfinder
+# [Chemical-Reaction-Pathfinder](https://subodhniroula.com.np/Chemical-Reaction-Pathfinder/)
 
 This program models simple chemical reaction pathways as a weighted, directed graph and finds the lowest-cost pathway between two compounds using **Dijkstra's algorithm**.
 
